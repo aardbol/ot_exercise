@@ -1,0 +1,98 @@
+---
+- name: OT node setup
+  hosts: all
+  become: yes
+  vars:
+    server_hostname: "{{ node_name }}.origintrail.com"
+    tls_key_size: 4096
+    tls_key_type: Ed25519
+    csr_country: Belgium
+    csr_organization: tracelabs
+    csr_email: admin@tracelabs.io
+  tasks:
+    - name: Server system update
+      apt:
+        name: "*"
+        state: latest
+
+    - name: Set hostname
+      hostname:
+        name: "{{ server_hostname }}"
+        strategy: systemd
+
+    # Needed for Ansible
+    - name: Install pip requirements
+      pip:
+        name:
+          - cryptography
+          - docker
+
+    - name: Install Docker repo key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+
+    - name: Install Docker repo
+      apt_repository:
+        repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu bionic stable
+        filename: docker
+
+    - name: Install application requirements
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - software-properties-common
+          - jq
+          - docker-ce
+
+    - name: Start and enable Docker daemon
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+
+    # Since we have no users other than root, we don't need to add anyone to the docker group
+
+    - name: Generate OpenSSL private key
+      openssh_keypair:
+        path: /root/certs/id_
+        type: "{{ tls_key_type }}"
+        size: "{{ tls_key_size }}"
+
+    - name: Generate OpenSSL CSR
+      openssl_csr:
+        path: /root/certs/request.csr
+        privatekey_path: /root/certs/privkey.pem
+        country_name: "{{ country }}"
+        organization_name: "{{ organization }}"
+        email_address: "{{ email }}"
+        common_name: "{{ hostname }}"
+
+    - name: Generate OpenSSL certificate
+      openssl_certificate:
+        path: /root/certs/cert.pem
+        privatekey_path: /root/certs/privkey.pem
+        csr_path: /root/certs/request.csr
+        provider: selfsigned
+
+    - name: Copy default config to server
+      template:
+        src: templates/.origintrail_noderc.j2
+        dest: /root/.origintrail_noderc
+        mode: 0644
+
+    - name: Start ot-node container
+      docker_container:
+        name: otnode
+        image: docker.io/origintrail/ot-node:release_mainnet
+        interactive: yes
+        log_driver: json-file
+        log_options:
+          max-size: 1g
+        volumes:
+          - /root/.origintrail_noderc:/ot-node/.origintrail_noderc
+        ports:
+          - "8900:8900"
+          - "5278:5278"
+          - "3000:3000"
