@@ -1,5 +1,6 @@
 locals {
   private_key = file("~/.ssh/mysshkey")
+  domain = "origintrail.com"
 }
 
 resource "digitalocean_ssh_key" "default" {
@@ -33,6 +34,13 @@ resource "digitalocean_droplet" "ot_node" {
   }
 }
 
+resource "digitalocean_domain" "dns" {
+  for_each = digitalocean_droplet.ot_node
+
+  name       = "${each.value.name}.${local.domain}"
+  ip_address = each.value.ipv4_address
+}
+
 output "ot_node_ips" {
-  value = {for d in digitalocean_droplet.ot_node : d.name => d.ip4_address}
+  value = { for d in digitalocean_droplet.ot_node : d.name => d.ip4_address }
 }
