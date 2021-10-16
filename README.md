@@ -13,4 +13,4 @@
 - terraform plan -out tfplan
 
 ### Apply the changes
-- terraform apply
+- terraform apply tfplan
