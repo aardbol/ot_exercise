@@ -30,7 +30,7 @@ resource "digitalocean_droplet" "ot_node" {
   }
 
   provisioner "local-exec" {
-    command = "ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -u root -i '${self.ipv4_address},' --private-key ${local.private_key} -e 'node_name=node${index(var.node_regions, each.key)}' node_setup.yml"
+    command = "ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -u root -i '${self.ipv4_address},' --private-key ~/.ssh/mysshkey -e 'node_name=node${index(var.node_regions, each.key)}' node_setup.yml"
   }
 }
 
